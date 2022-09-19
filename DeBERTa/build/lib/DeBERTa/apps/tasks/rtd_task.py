@@ -36,6 +36,8 @@ from ..models import MaskedLanguageModel, ReplacedTokenDetectionModel
 from .mlm_task import NGramMaskGenerator
 from .._utils import merge_distributed, join_chunks
 from datasets import load_from_disk
+
+from itertools import chain
 logger = get_logger()
 
 __all__ = ["RTDTask"]
@@ -138,6 +140,34 @@ class RTDTask(Task):
             return examples
 
         self.dataset = self.dataset.map(tokenize_function, batched=True, num_proc=16)
+
+        # Main data processing function that will concatenate all texts from our dataset and generate chunks of
+        # max_seq_length.
+        max_seq_length = args.max_seq_length
+
+        def group_texts(examples):
+            # Concatenate all texts.
+            concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
+            total_length = len(concatenated_examples[list(examples.keys())[0]])
+            # We drop the small remainder, we could add padding if the model supported it instead of this drop, you can
+            # customize this part to your needs.
+            if total_length >= max_seq_length:
+                total_length = (total_length // max_seq_length) * max_seq_length
+            # Split by chunks of max_len.
+            result = {
+                k: [t[i : i + max_seq_length] for i in range(0, total_length, max_seq_length)]
+                for k, t in concatenated_examples.items()
+            }
+            return result
+
+
+        self.dataset = self.dataset.map(
+            group_texts,
+            batched=True,
+            num_proc=16,
+            desc=f"Grouping texts in chunks of {max_seq_length}",
+        )
+
         self.mask_gen = NGramMaskGenerator(tokenizer, max_gram=1, keep_prob=0, mask_prob=1,
                                            max_seq_len=args.max_seq_length)
 

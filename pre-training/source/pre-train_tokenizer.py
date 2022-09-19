@@ -40,20 +40,6 @@ if __name__ == '__main__':
     #
     # # convert
     tokenizer = DebertaV2TokenizerFast(tokenizer_object=tk_tokenizer, model_max_length=128, special_tokens=special_tokens)
-    tokenizer.bos_token = "<s>"
-    tokenizer.bos_token_id = tk_tokenizer.token_to_id("<s>")
-    tokenizer.pad_token = "<pad>"
-    tokenizer.pad_token_id = tk_tokenizer.token_to_id("<pad>")
-    tokenizer.eos_token = "</s>"
-    tokenizer.eos_token_id = tk_tokenizer.token_to_id("</s>")
-    tokenizer.unk_token = "<unk>"
-    tokenizer.unk_token_id = tk_tokenizer.token_to_id("<unk>")
-    tokenizer.cls_token = "<cls>"
-    tokenizer.cls_token_id = tk_tokenizer.token_to_id("<cls>")
-    tokenizer.sep_token = "<sep>"
-    tokenizer.sep_token_id = tk_tokenizer.token_to_id("<sep>")
-    tokenizer.mask_token = "<mask>"
-    tokenizer.mask_token_id = tk_tokenizer.token_to_id("<mask>")
     # # and save for later!
     tokenizer.save_pretrained(args.destination_dir)
     tk_tokenizer.save(args.destination_dir + '/spm.model')
