@@ -1,6 +1,6 @@
 import lzma
 import argparse
-
+import lzma
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--source_file', type=str, default=None, help='Source file')
@@ -10,7 +10,15 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    with open(args.source_file, "wt") as fout:
-        with lzma.open(args.destination_file, "rt") as fin:
+
+    cnt = 0
+    # lzma._BUFFER_SIZE = 1023
+    with open(args.destination_file, mode = "wt") as fout:
+        with lzma.open(args.source_file, mode = "rt") as fin:
             for line in fin:
-                fout.write(line)
+                cnt+=1
+                if len(line) > 0:
+                    fout.write(line+'\n')
+                if(cnt%1e8 == 0):
+                    print(cnt)
+                    print(line)

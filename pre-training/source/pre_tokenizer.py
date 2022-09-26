@@ -17,25 +17,31 @@ if __name__ == '__main__':
     data_path = args.source_file
     start_time = time.perf_counter()
 
-    dataset = datasets.load_dataset("text", data_files=data_path, cache_dir=args.cache_dir)
+    # dataset = datasets.load_dataset("text", data_files=data_path, cache_dir=args.cache_dir)
+    # dataset['validation'] = datasets.load_dataset("text",
+    #                                               data_files=data_path,
+    #                                               split=f"train[:5%]",
+    #                                               cache_dir=args.cache_dir)
+    # dataset['test'] = datasets.load_dataset("text",
+    #                                         data_files=data_path,
+    #                                         split=f"train[5%:10%]",
+    #                                         cache_dir=args.cache_dir)
+    # dataset['train'] = datasets.load_dataset("text",
+    #                                          data_files=data_path,
+    #                                          split=f"train[10%:]",
+    #                                          cache_dir=args.cache_dir)
+    dataset = datasets.load_dataset("text",
+                                    data_files=data_path+'/train.txt')
     dataset['validation'] = datasets.load_dataset("text",
-                                                  data_files=data_path,
-                                                  split=f"train[:5%]",
-                                                  cache_dir=args.cache_dir)
+                                    data_files=data_path+'/val.txt')['train']
     dataset['test'] = datasets.load_dataset("text",
-                                            data_files=data_path,
-                                            split=f"train[5%:10%]",
-                                            cache_dir=args.cache_dir)
-    dataset['train'] = datasets.load_dataset("text",
-                                             data_files=data_path,
-                                             split=f"train[10%:]",
-                                             cache_dir=args.cache_dir)
+                                    data_files=data_path+'/test.txt')['train']
 
     def tokenize_function(examples):
         examples["text"] = [ViTokenizer.tokenize(line) for line in examples["text"]]
         return examples
 
-    dataset = dataset.map(tokenize_function, batched=True, num_proc=16)
+    dataset = dataset.map(tokenize_function, batched=True)
     dataset.save_to_disk(args.destination_dir)
     print(dataset)
     finish_time = time.perf_counter()
