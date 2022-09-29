@@ -17,13 +17,15 @@ from torch.utils.data import DataLoader
 from ..data import BatchSampler, DistributedBatchSampler,RandomSampler,SequentialSampler, AsyncDataLoader
 from ..utils import get_logger
 logger = get_logger()
+import wandb
+
 
 from .dist_launcher import get_ngpu
 from .optimizer_utils import create_xoptimizer
 from ._utils import batch_to
 
 __all__ = ['DistributedTrainer', 'set_random_seed']
-
+wandb.init(project="vi-deberta", entity="aehus")
 def set_random_seed(seed, cpu_only=False):
   random.seed(seed)
   np.random.seed(seed)
@@ -65,6 +67,7 @@ class TrainerState:
       tag = f'[{self.name}]'
     else:
       tag = None
+    wandb.log({"loss": self.loss/self.steps})
     logger.info('{}[{:0.1f}%][{:0.2f}h] Steps={}, loss={}, examples={}, loss_scale={:0.1f}, {:0.1f}s'.format(tag, 100*self.steps/self.num_training_steps, \
       (self.num_training_steps - self.steps)*(start-end)/((self.steps-self._last_report_step)*3600), self.steps, self.loss/self.steps, self.examples, self.loss_scale, end-start))
     self._last_report_time = end

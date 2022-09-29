@@ -1,6 +1,8 @@
 import lzma
 import argparse
 import lzma
+from pyvi import ViTokenizer
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--source_file', type=str, default=None, help='Source file')
@@ -18,7 +20,14 @@ if __name__ == '__main__':
             for line in fin:
                 cnt+=1
                 if len(line) > 0:
-                    fout.write(line+'\n')
-                if(cnt%1e8 == 0):
+                    try: 
+                        fout.write(ViTokenizer.tokenize(line))
+                        fout.write(" \n")
+                    except:
+                        print(cnt)
+                        print(line)
+                if(cnt%1e6 == 0):
                     print(cnt)
                     print(line)
+                if(cnt%2e8 == 0):
+                    break

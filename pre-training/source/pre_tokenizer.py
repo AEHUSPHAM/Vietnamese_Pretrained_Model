@@ -17,33 +17,23 @@ if __name__ == '__main__':
     data_path = args.source_file
     start_time = time.perf_counter()
 
-    # dataset = datasets.load_dataset("text", data_files=data_path, cache_dir=args.cache_dir)
-    # dataset['validation'] = datasets.load_dataset("text",
-    #                                               data_files=data_path,
-    #                                               split=f"train[:5%]",
-    #                                               cache_dir=args.cache_dir)
-    # dataset['test'] = datasets.load_dataset("text",
-    #                                         data_files=data_path,
-    #                                         split=f"train[5%:10%]",
-    #                                         cache_dir=args.cache_dir)
-    # dataset['train'] = datasets.load_dataset("text",
-    #                                          data_files=data_path,
-    #                                          split=f"train[10%:]",
-    #                                          cache_dir=args.cache_dir)
     dataset = datasets.load_dataset("text",
-                                    data_files=data_path+'/train.txt')
-    dataset['validation'] = datasets.load_dataset("text",
-                                    data_files=data_path+'/val.txt')['train']
-    dataset['test'] = datasets.load_dataset("text",
-                                    data_files=data_path+'/test.txt')['train']
-
+                                    data_files=data_path,
+                                    cache_dir=args.cache_dir)
+    print(dataset)
     def tokenize_function(examples):
-        examples["text"] = [ViTokenizer.tokenize(line) for line in examples["text"]]
+        # examples["text"] = [ViTokenizer.tokenize(line) for line in examples["text"]]
+        ls = []
+        for i in examples["text"]:
+            if len(i) >5:
+                ls.append(i)
+        examples["text"] = ls
         return examples
 
-    dataset = dataset.map(tokenize_function, batched=True)
-    dataset.save_to_disk(args.destination_dir)
+    dataset = dataset.map(tokenize_function, batched=True, num_proc=32)
     print(dataset)
+    dataset.save_to_disk(args.destination_dir)
+    
     finish_time = time.perf_counter()
     print(f"Finished in {finish_time - start_time} seconds")
 

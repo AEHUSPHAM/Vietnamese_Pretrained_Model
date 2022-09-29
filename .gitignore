@@ -1,2 +1,5 @@
 pre-training/dataset/
+pre-training/cache/
+pre-training/spm_cc100/
+pre-training/tokenizer/
 fine-tuning/dataset/

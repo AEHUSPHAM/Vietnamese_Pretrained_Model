@@ -93,10 +93,7 @@ class NGramMaskGenerator:
           w_cnt += 1
         if w_cnt >= num_to_predict:
           break
-    # for i in target_labels:
-    #   if i:
-    #     print(i)
-    target_labels = [self.tokenizer.vocab[x] if x else 0 for x in target_labels]
+    target_labels = [self.tokenizer.convert_tokens_to_ids(x) if x else 0 for x in target_labels]
     return tokens, target_labels
 
   def _choice(self, rng, data, p):

@@ -1,3 +1,4 @@
+
 # Copyright (c) Microsoft, Inc. 2020
 #
 # This source code is licensed under the MIT license found in the
@@ -237,11 +238,11 @@ def main(args):
   np.random.seed(args.seed)
   torch.manual_seed(args.seed)
 
-  vocab_path, vocab_type = load_vocab(vocab_path = args.vocab_path, vocab_type = args.vocab_type, pretrained_id = args.init_model)
+  # vocab_path, vocab_type = load_vocab(vocab_path = args.vocab_path, vocab_type = args.vocab_type, pretrained_id = args.init_model)
   if args.tokenizer_dir: 
-    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_dir, use_fast = False)
-  else: 
-    tokenizer = tokenizers[vocab_type](vocab_path)
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_dir)
+  # else: 
+    # tokenizer = tokenizers[vocab_type](vocab_path)
   task = get_task(args.task_name)(tokenizer = tokenizer, args=args, max_seq_len = args.max_seq_length, data_dir = args.data_dir)
   label_list = task.get_labels()
 
@@ -258,7 +259,7 @@ def main(args):
   if args.do_train:
     with open(os.path.join(args.output_dir, 'model_config.json'), 'w', encoding='utf-8') as fs:
       fs.write(model.config.to_json_string() + '\n')
-    shutil.copy(vocab_path, args.output_dir)
+    # shutil.copy(vocab_path, args.output_dir)
   logger.info("Model config {}".format(model.config))
   device = initialize_distributed(args)
   if not isinstance(device, torch.device):
@@ -444,3 +445,15 @@ if __name__ == "__main__":
       pass
     kill_children()
     os._exit(-1)
+
+
+wandb.init(project="vi-deberta", entity="aehus")
+wandb.config = {
+  "learning_rate": 0.001,
+  "epochs": 100,
+  "batch_size": 128
+}
+wandb.log({"loss": loss})
+
+# Optional
+wandb.watch(model)

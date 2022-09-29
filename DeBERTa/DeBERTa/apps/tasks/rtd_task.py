@@ -36,8 +36,6 @@ from ..models import MaskedLanguageModel, ReplacedTokenDetectionModel
 from .mlm_task import NGramMaskGenerator
 from .._utils import merge_distributed, join_chunks
 from datasets import load_from_disk
-
-from itertools import chain
 logger = get_logger()
 
 __all__ = ["RTDTask"]
@@ -46,13 +44,13 @@ __all__ = ["RTDTask"]
 class RTDModel(NNModule):
     def __init__(self, config, *wargs, **kwargs):
         super().__init__(config)
-        # gen_config = config.generator
-        # disc_config = config.discriminator
+        gen_config = config.generator
+        disc_config = config.discriminator
         self.config = config
-        # self.generator = MaskedLanguageModel(gen_config)
-        # self.discriminator = ReplacedTokenDetectionModel(disc_config)
-        self.generator = MaskedLanguageModel(config)
-        self.discriminator = ReplacedTokenDetectionModel(config)
+        self.generator = MaskedLanguageModel(gen_config)
+        self.discriminator = ReplacedTokenDetectionModel(disc_config)
+        # self.generator = MaskedLanguageModel(config)
+        # self.discriminator = ReplacedTokenDetectionModel(config)
         self.share_embedding = getattr(config, 'embedding_sharing', "none").lower()
         if self.share_embedding == 'gdes':  # Gradient-disentangled weight/embedding sharing
             word_bias = torch.zeros_like(self.discriminator.deberta.embeddings.word_embeddings.weight)
@@ -127,7 +125,7 @@ class RTDModel(NNModule):
             delattr(module, param_name)
         module.register_buffer(param_name, value)
 
-
+from itertools import chain
 @register_task(name="RTD", desc="Replaced token detection pretraining task")
 class RTDTask(Task):
     def __init__(self, data_dir, tokenizer, args, **kwargs):
@@ -135,38 +133,26 @@ class RTDTask(Task):
         self.data_dir = data_dir
         # Adding
         self.dataset = load_from_disk(args.data_dir)
+        max_seq_length = args.max_seq_length
+
         def tokenize_function(examples):
             examples["text"] = [self.tokenizer.tokenize(line.strip()) for line in examples["text"]]
             return examples
 
-        self.dataset = self.dataset.map(tokenize_function, batched=True, num_proc=16)
-
-        # Main data processing function that will concatenate all texts from our dataset and generate chunks of
-        # max_seq_length.
-        max_seq_length = args.max_seq_length
-
         def group_texts(examples):
-            # Concatenate all texts.
-            concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
-            total_length = len(concatenated_examples[list(examples.keys())[0]])
-            # We drop the small remainder, we could add padding if the model supported it instead of this drop, you can
-            # customize this part to your needs.
-            if total_length >= max_seq_length:
-                total_length = (total_length // max_seq_length) * max_seq_length
-            # Split by chunks of max_len.
-            result = {
-                k: [t[i : i + max_seq_length] for i in range(0, total_length, max_seq_length)]
-                for k, t in concatenated_examples.items()
-            }
-            return result
+            all_tokens, input_tokens = [], []
+            for tokens in examples['text']:
+                all_tokens.extend(tokens + ['[SEP]'])
 
-
-        self.dataset = self.dataset.map(
-            group_texts,
-            batched=True,
-            num_proc=16,
-            desc=f"Grouping texts in chunks of {max_seq_length}",
-        )
+            idx=0
+            while idx < len(all_tokens):
+                input_tokens.append(all_tokens[idx:idx+max_seq_length-2])
+                idx += args.max_seq_length-2
+            
+            return {'text': input_tokens}
+        
+        self.dataset = self.dataset.map(tokenize_function, batched=True, num_proc=16)
+        self.dataset['train'] = self.dataset['train'].map(group_texts, batched=True, num_proc=16)
 
         self.mask_gen = NGramMaskGenerator(tokenizer, max_gram=1, keep_prob=0, mask_prob=1,
                                            max_seq_len=args.max_seq_length)
@@ -202,21 +188,6 @@ class RTDTask(Task):
     def test_data(self, max_seq_len=512, **kwargs):
         """See base class."""
         raise NotImplemented('This method is not implemented yet.')
-
-    def _data(self, name, path, type_name='dev', ignore_metric=False):
-        if isinstance(path, str):
-            path = [path]
-        data = []
-        for p in path:
-            input_src = os.path.join(self.data_dir, p)
-            assert os.path.exists(input_src), f"{input_src} doesn't exists"
-            data.extend(self.load_data(input_src))
-
-        predict_fn = self.get_predict_fn()
-        examples = ExampleSet(data)
-        return EvalData(name, examples,
-                        metrics_fn=self.get_metrics_fn(), predict_fn=predict_fn, ignore_metric=ignore_metric,
-                        critial_metrics=['accuracy'])
 
     def get_metrics_fn(self):
         """Calcuate metrics based on prediction results"""
@@ -290,9 +261,9 @@ class RTDTask(Task):
                 gen_args = copy.deepcopy(args)
                 gen_args.checkpoint_dir = os.path.join(gen_args.output_dir, 'generator')
                 os.makedirs(gen_args.checkpoint_dir, exist_ok=True)
-                # with open(os.path.join(gen_args.checkpoint_dir, 'model_config.json'), 'w') as fs:
-                #     fs.write(model.config.generator.to_json_string() + '\n')
-                shutil.copy(args.vocab_path, gen_args.checkpoint_dir)
+                with open(os.path.join(gen_args.checkpoint_dir, 'model_config.json'), 'w') as fs:
+                    fs.write(model.config.generator.to_json_string() + '\n')
+                # shutil.copy(args.vocab_path, gen_args.checkpoint_dir)
                 loss_fn = self.get_decoupled_loss_fn(args, model, data_fn, device, args.num_training_steps)
                 trainer = DistributedTrainer(gen_args, gen_args.output_dir, model.generator, device, data_fn,
                                              loss_fn=loss_fn, eval_fn=eval_fn, dump_interval=args.dump_interval,
@@ -384,11 +355,11 @@ class RTDTask(Task):
         disc_args.checkpoint_dir = os.path.join(disc_args.output_dir, 'discriminator')
         os.makedirs(disc_args.checkpoint_dir, exist_ok=True)
         # adding "model_type": "deberta-v2" field into config
-        # model_config_to_write = copy.deepcopy(model.config.discriminator)
-        # model_config_to_write.model_type = "deberta-v2"
-        # with open(os.path.join(disc_args.checkpoint_dir, 'model_config.json'), 'w') as fs:
-        #     fs.write(model_config_to_write.to_json_string() + '\n')
-        shutil.copy(args.vocab_path, disc_args.checkpoint_dir)
+        model_config_to_write = copy.deepcopy(model.config.discriminator)
+        model_config_to_write.model_type = "deberta-v2"
+        with open(os.path.join(disc_args.checkpoint_dir, 'model_config.json'), 'w') as fs:
+            fs.write(model_config_to_write.to_json_string() + '\n')
+        # shutil.copy(args.vocab_path, disc_args.checkpoint_dir)
         if disc_args.discriminator_learning_rate > 0:
             disc_args.learning_rate = disc_args.discriminator_learning_rate
         disc_trainer = DistributedTrainer(disc_args, args.output_dir, model.discriminator, device, data_fn,
