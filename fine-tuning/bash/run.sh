@@ -1,7 +1,7 @@
-python3 ../source/token-classification.py \
-  --model_name_or_path bert-base-uncased \
-  --dataset_name conll2003 \
-  --output_dir /tmp/test-ner \
+
+CUDA_VISIBLE_DEVICES=1 python3 ../source/token-classification.py \
+  --model_name_or_path microsoft/deberta-v3-xsmall \
+  --data_dir ../dataset/pos_ner \
+  --output_dir ../tmp/ner_deberta \
   --do_train \
-  --do_eval \
-  --overwrite_output_dir 1 \
+  --do_eval
